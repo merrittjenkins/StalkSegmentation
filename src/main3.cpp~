@@ -457,9 +457,9 @@ int main (int argc, char** argv)
       cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images/left0000%d.jpg", w+1);}
 
 
-    //std::string img1_filename = "../Sorghum_Stitching/images/left000007.jpg";
-    //std::string img2_filename = "../Sorghum_Stitching/images/right000007.jpg";
-    //std::string img3_filename = "../Sorghum_Stitching/images/left000008.jpg";
+      //std::string img1_filename = "../Sorghum_Stitching/images/left000007.jpg";
+      //std::string img2_filename = "../Sorghum_Stitching/images/right000007.jpg";
+      //std::string img3_filename = "../Sorghum_Stitching/images/left000008.jpg";
 
     //-------------------------------------------SCALE IMAGES-------------------------------------------
 
