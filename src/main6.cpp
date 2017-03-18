@@ -410,7 +410,7 @@ pcl::PointCloud<pcl::PointNormal>::Ptr filterFunction2(pcl::PointCloud<pcl::Poin
 int main (int argc, char** argv)
 {
 
-  for(int offset = 189; offset < 191; offset+=1) { //149-171
+  for(int offset = 0; offset < 5; offset+=1) { //149-171
 
     std::clock_t start;
     double duration;
@@ -552,25 +552,25 @@ int main (int argc, char** argv)
       int imstart = w + offset;
 
       if (imstart<9) {
-        cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images10/left_00000%d.jpg", imstart);
-        cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images10/right_00000%d.jpg", imstart);
-        cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images10/left_00000%d.jpg", imstart+1);}    
+        cx1 = snprintf ( img1_filename, 100, "images2/left_00000%d.jpg", imstart);
+        cx2 = snprintf ( img2_filename, 100, "images2/right_00000%d.jpg", imstart);
+        cx3 = snprintf ( img3_filename, 100, "images2/left_00000%d.jpg", imstart+1);}    
       else if (imstart==9) {
-        cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images10/left_00000%d.jpg", imstart);
-        cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images10/right_00000%d.jpg", imstart);
-        cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images10/left_0000%d.jpg", imstart+1);}     
+        cx1 = snprintf ( img1_filename, 100, "images2/left_00000%d.jpg", imstart);
+        cx2 = snprintf ( img2_filename, 100, "images2/right_00000%d.jpg", imstart);
+        cx3 = snprintf ( img3_filename, 100, "images2/left_0000%d.jpg", imstart+1);}     
       else if (imstart<99){
-        cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images10/left_0000%d.jpg", imstart);  
-        cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images10/right_0000%d.jpg", imstart); 
-        cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images10/left_0000%d.jpg", imstart+1);}
+        cx1 = snprintf ( img1_filename, 100, "images2/left_0000%d.jpg", imstart);  
+        cx2 = snprintf ( img2_filename, 100, "images2/right_0000%d.jpg", imstart); 
+        cx3 = snprintf ( img3_filename, 100, "images2/left_0000%d.jpg", imstart+1);}
       else if (imstart==99){
-        cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images10/left_0000%d.jpg", imstart);  
-        cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images10/right_0000%d.jpg", imstart); 
-        cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images10/left_000%d.jpg", imstart+1);}  
+        cx1 = snprintf ( img1_filename, 100, "images2/left_0000%d.jpg", imstart);  
+        cx2 = snprintf ( img2_filename, 100, "images2/right_0000%d.jpg", imstart); 
+        cx3 = snprintf ( img3_filename, 100, "images2/left_000%d.jpg", imstart+1);}  
       else {
-        cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images10/left_000%d.jpg", imstart);  
-        cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images10/right_000%d.jpg", imstart); 
-        cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images10/left_000%d.jpg", imstart+1);}
+        cx1 = snprintf ( img1_filename, 100, "images2/left_000%d.jpg", imstart);  
+        cx2 = snprintf ( img2_filename, 100, "images2/right_000%d.jpg", imstart); 
+        cx3 = snprintf ( img3_filename, 100, "images2/left_000%d.jpg", imstart+1);}
 
 
       //-------------------------------------------SCALE IMAGES-------------------------------------------
@@ -980,7 +980,7 @@ int main (int argc, char** argv)
 
 
     stringstream ss2;
-    ss2 << "stitched_clouds10_complete/plants_tform_" << offset << ".ply";
+    ss2 << "stitched_clouds2_complete/plants_tform_" << offset << ".ply";
 
     writer.write (ss2.str(), *cloud_b, false);
 

@@ -676,7 +676,7 @@ int main (int argc, char** argv)
 
     // Import just the regular unmodified (other than rotated) point cloud
     std::stringstream ss5;
-    ss5 << "stitched_clouds10_complete/plants_tform_" << argv[1] << ".ply";
+    ss5 << "stitched_clouds2_complete/plants_tform_" << argv[1] << ".ply";
     //reader.read<pcl::PointXYZ> ("stitched_clouds2/plants_tform_111.ply", *cloud_a);
     reader.read<pcl::PointXYZ> (ss5.str(), *cloud_a);
     cout << "Cloud_a size: " << cloud_a->size() << endl;
