@@ -207,7 +207,7 @@ pcl::PointCloud<pcl::PointNormal>::Ptr filterFunction2(pcl::PointCloud<pcl::Poin
 				matrix_normals[i][j] = (matrix_normals[i][j])/(matrix[i][j]);
 			}
 
-			if ((matrix[i][j]<25) || (matrix_normals[i][j]>0.5))
+			if ((matrix[i][j]<15) || (matrix_normals[i][j]>0.5))
 			{
 				std::stringstream ss;
 				ss << i << j;		
@@ -282,11 +282,7 @@ int main (int argc, char** argv)
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_a (new pcl::PointCloud<pcl::PointXYZ>);  
 
     // Import just the regular unmodified (other than rotated) point cloud
-    
-    std::stringstream ss5;
-    ss5 << "stitched_clouds6/plants_tform_" << argv[1] << ".ply";
-
-    reader.read<pcl::PointXYZ> (ss5.str(), *cloud_a);
+    reader.read<pcl::PointXYZ> ("test.ply", *cloud_a);
     cout << "Cloud_a size: " << cloud_a->size() << endl;
 
     std::clock_t start;
@@ -317,48 +313,54 @@ int main (int argc, char** argv)
 	std::vector<int> indices;
     pcl::removeNaNNormalsFromPointCloud(*cloud_normals,*cloud_normals, indices);
 
-	std::cerr << ">> Done: " << cloud_normals->size() << "\n";
-	writer.write ("cloud_normals.ply", *cloud_normals, false);
+	//std::cerr << ">> Done: " << cloud_normals->size() << "\n";
+	//writer.write ("cloud_normals.ply", *cloud_normals, false);
 
-    //-----------------------------------------Take a 20cm Slice------------------------------------------
-    pcl::PointCloud<pcl::PointNormal>::Ptr cloud_slice (new pcl::PointCloud<pcl::PointNormal>);
-    // Create passthrough filter
-    pcl::PassThrough<pcl::PointNormal> pass;
-    pass.setInputCloud (cloud_normals);
-    pass.setFilterFieldName ("x");
-    pass.setFilterLimits (-0.2, -0.0);;
-    pass.filter (*cloud_slice);
-    cout << "Cloud_slice size: " << cloud_slice->size() << endl;
-    //writer.write ("slice.ply", *cloud_slice, false);
+    for(int n=0; n<5; n++){
+	    //-----------------------------------------Take a 20cm Slice------------------------------------------
+	    pcl::PointCloud<pcl::PointNormal>::Ptr cloud_slice (new pcl::PointCloud<pcl::PointNormal>);
+	    // Create passthrough filter
+	    pcl::PassThrough<pcl::PointNormal> pass;
+	    pass.setInputCloud (cloud_normals);
+	    pass.setFilterFieldName ("x");
+	    pass.setFilterLimits (-0.2-0.2*(n), -0.2*(n));
+	    //pass.setFilterLimits (-0.2, -0.0);
+	    pass.filter (*cloud_slice);
+	    cout << "Cloud_slice size: " << cloud_slice->size() << endl;
+	    //writer.write ("slice.ply", *cloud_slice, false);
 
-	std::vector<int> indices3;
-    pcl::removeNaNFromPointCloud(*cloud_slice,*cloud_slice, indices3);
+		std::vector<int> indices3;
+	    pcl::removeNaNFromPointCloud(*cloud_slice,*cloud_slice, indices3);
 
 
-    //-------------------------------------Heat Map / Filter It-----------------------------------
+	    //-------------------------------------Heat Map / Filter It-----------------------------------
 
-    cloud_slice = filterFunction2(cloud_slice);
-	
-    writer.write ("slice_filtered.ply", *cloud_slice, false);
+	    cloud_slice = filterFunction2(cloud_slice);
+		
+	    writer.write ("slice_filtered.ply", *cloud_slice, false);
 
-	// Turn each cluster index into a point cloud
-	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> multiCloud;
+		// Turn each cluster index into a point cloud
+		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> multiCloud;
 
-    // Perform region growing on the sliced point cloud
-	multiCloud = regionGrow_ground(cloud_slice);
+	    // Perform region growing on the sliced point cloud
+		multiCloud = regionGrow_ground(cloud_slice); //outputs a vector of clouds
 
-	cout << "Number of clouds: " << multiCloud.size() << endl;
+		cout << "Number of clouds: " << multiCloud.size() << endl;
 
-	//UNCOMMENT THIS TO WRITE THE GROUND-SLICE CLOUD CLUSTERS TO DISK
+		//UNCOMMENT THIS TO WRITE THE GROUND-SLICE CLOUD CLUSTERS TO DISK
 
-	for(int j=0; j<multiCloud.size(); j++){
-		std::cout << "PointCloud representing the Cluster: " << (multiCloud[j])->points.size () << " data points." << std::endl;
-		std::stringstream ss;
-		ss << "cloud_cluster_" << j << ".ply";
-		writer.write<pcl::PointXYZ> (ss.str (), *(multiCloud[j]), false);
+		for(int j=0; j<multiCloud.size(); j++){
+			std::cout << "PointCloud representing the Cluster: " << (multiCloud[j])->points.size () << " data points." << std::endl;
+			std::stringstream ss;
+			ss << "cloud_cluster_" << n << "_" << j << ".ply";
+			writer.write<pcl::PointXYZ> (ss.str (), *(multiCloud[j]), false);
+		}
+		duration = (clock() - start) / (double) CLOCKS_PER_SEC;
+    	cout<<"TIME, FILTERING: " << duration << endl;
 	}
 
 
+	/*
 	//----------------------------------THIS IS THE START OF GROWING UPWARDS--------------------------------
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud1 (new pcl::PointCloud<pcl::PointXYZ>);
@@ -492,7 +494,7 @@ int main (int argc, char** argv)
 
 	// Display the points
 	pcl::PointCloud <pcl::PointXYZRGB>::Ptr cloud_a_rgb (new pcl::PointCloud<pcl::PointXYZRGB>);
-	reader.read<pcl::PointXYZRGB> (ss5.str(), *cloud_a_rgb);
+	reader.read<pcl::PointXYZRGB> ("plants_tform.ply", *cloud_a_rgb);
 
 	viewer->setBackgroundColor (0, 0, 0);
   	pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud_a_rgb);
@@ -504,6 +506,7 @@ int main (int argc, char** argv)
 		viewer->spinOnce (100);
 		boost::this_thread::sleep (boost::posix_time::microseconds (100000));
 	}
+	*/
 	
     return(0);
 

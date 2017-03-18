@@ -36,121 +36,6 @@ It grows the stalk location upward, looking for member elements.
 */
 
 
-pcl::PointCloud<pcl::PointNormal>::Ptr filterFunction(pcl::PointCloud<pcl::PointNormal>::Ptr cloud_up, pcl::PointXYZ maxPt, pcl::PointXYZ minPt, float extension)
-{
-//-------------------Apply filtering based on normals and x-density-----------------------
-
-	float z_distr = maxPt.z-minPt.z+2*extension;
-	float y_distr = maxPt.y-minPt.y+2*extension;
-
-	//cout << "number of points: " << cloud_up->size() << endl;
-	////cout << "z_distr is: " << z_distr << endl;
-	////cout << "y_distr is: " << y_distr << endl;
-
-	int no_of_rows = int(y_distr*100)+1; 
-	int no_of_cols = int(z_distr*100)+1;
-	int initial_value = 0;
-
-	////cout << "boundary is: " << no_of_rows << ", " << no_of_cols << endl;
-
-	std::vector<std::vector<int> > matrix;
-	std::vector<std::vector<float> > matrix_normals;
-	std::map <std::string, std::vector<int> > point_indices; //this is a map that will be filled with a string of the matrix location and the associated point indices
-
-	matrix.resize(no_of_rows, std::vector<int>(no_of_cols, initial_value));
-	matrix_normals.resize(no_of_rows, std::vector<float>(no_of_cols, initial_value));
-
-	// Loop through every point in the cloud	
-	for(int i=0; i<cloud_up->size(); i++)
-	{
-		int scatter_y = -int(((*cloud_up)[i].y*-100) + (minPt.y - extension)*100); //this is the y-location of the point
-		int scatter_z = -int(((*cloud_up)[i].z*-100) + (minPt.z - extension)*100); //this is the z-location of the point
-
-		matrix[scatter_y][scatter_z] = matrix[scatter_y][scatter_z]+1; //add a count to that cell location
-		matrix_normals[scatter_y][scatter_z] = matrix_normals[scatter_y][scatter_z]+std::abs((*cloud_up)[i].normal_x); //add z-normal to that cell location
-
-		//HERE I KEEP TRACK OF WHICH POINT INDICES ARE ASSOCIATED WITH WHICH LOCATION
-		std::stringstream ss;
-		ss << scatter_y << scatter_z;
-		point_indices[ss.str()].push_back(i);
-	}
-
-
-	//float (*)(const char*) test = nanf;
-	float nanInsert = std::numeric_limits<float>::quiet_NaN();
-
-	// THIS TAKES THE AVERAGE NORMAL VECTOR FOR EACH VOXEL AND THEN DECIDES TO KEEP OR TOSS THE ELEMENTS OF THE VOXEL
-	for(int i=0; i<no_of_rows; i++)
-	{
-		for(int j=0; j<no_of_cols; j++) 
-		{
-			if ((matrix_normals[i][j]) > 0)
-			{
-				matrix_normals[i][j] = (matrix_normals[i][j])/(matrix[i][j]);
-			}
-
-			if ((matrix[i][j]<25) || (matrix_normals[i][j]>0.5))
-			{
-				std::stringstream ss;
-				ss << i << j;		
-
-				// Iterate through all elements associated with the key and delete them
-				for(int k=0; k<point_indices[ss.str()].size(); k++){  //assigning these as 1 is a total hack and needs to be fixed
-					(*cloud_up)[point_indices.find(ss.str())->second[k]].normal_x = nanInsert;
-				}
-			}
-		}
-	}
-
-	std::vector<int> indices2;
-    pcl::removeNaNNormalsFromPointCloud(*cloud_up,*cloud_up, indices2);
-
-
-    //THIS REGION-GROWS THE SLICE AND ONLY KEEPS THE LARGEST REGION
-    pcl::VoxelGrid<pcl::PointNormal> vg;
-	pcl::PointCloud<pcl::PointNormal>::Ptr cloud_vox (new pcl::PointCloud<pcl::PointNormal>);
-	vg.setInputCloud (cloud_up);
-	vg.setLeafSize (0.002f, 0.002f, 0.002f);
-	vg.filter (*cloud_vox);
-
-	pcl::search::KdTree<pcl::PointNormal>::Ptr tree2 (new pcl::search::KdTree<pcl::PointNormal>);
-	tree2->setInputCloud (cloud_vox);
-	std::vector<pcl::PointIndices> cluster_indices;
-	pcl::EuclideanClusterExtraction<pcl::PointNormal> ec;
-	ec.setClusterTolerance (0.02); // 2cm
-	ec.setMinClusterSize (50);
-	ec.setMaxClusterSize (25000);
-	ec.setSearchMethod (tree2);
-	ec.setInputCloud (cloud_vox);
-	ec.extract (cluster_indices);
-
-	int j = 0;
-	cout << "Size of cluster indices: " << cluster_indices.size() << endl;
-
-	pcl::PointCloud<pcl::PointNormal>::Ptr cluster_saver (new pcl::PointCloud<pcl::PointNormal>);
-
-	for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin (); it != cluster_indices.end (); ++it)
-	{
-		pcl::PointCloud<pcl::PointNormal>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointNormal>);
-		for (std::vector<int>::const_iterator pit = it->indices.begin (); pit != it->indices.end (); ++pit)
-			cloud_cluster->points.push_back (cloud_vox->points[*pit]); //*
-		//cout << "Size of cluster: " << cloud_cluster->size() << endl;
-		cloud_cluster->width = cloud_cluster->points.size ();
-		cloud_cluster->height = 1;
-		cloud_cluster->is_dense = true;
-
-		////cout << "PointCloud representing the Cluster: " << cloud_cluster->points.size () << " data points." << endl;
-		
-		if(it==cluster_indices.begin ())
-			cluster_saver = cloud_cluster;
-		else if(cloud_cluster->points.size() > cluster_saver->points.size())
-			cluster_saver = cloud_cluster;
-	}
-
-
-    return(cloud_up);
-}
-
 
 pcl::PointCloud<pcl::PointNormal>::Ptr filterFunction2(pcl::PointCloud<pcl::PointNormal>::Ptr cloud)
 {
@@ -207,7 +92,7 @@ pcl::PointCloud<pcl::PointNormal>::Ptr filterFunction2(pcl::PointCloud<pcl::Poin
 				matrix_normals[i][j] = (matrix_normals[i][j])/(matrix[i][j]);
 			}
 
-			if ((matrix[i][j]<25) || (matrix_normals[i][j]>0.5))
+			if ((matrix[i][j]<15) || (matrix_normals[i][j]>0.5))
 			{
 				std::stringstream ss;
 				ss << i << j;		
@@ -227,7 +112,7 @@ pcl::PointCloud<pcl::PointNormal>::Ptr filterFunction2(pcl::PointCloud<pcl::Poin
 }
 
 
-std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> regionGrow_ground(pcl::PointCloud<pcl::PointNormal>::Ptr cloud) {
+std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> regionGrow(pcl::PointCloud<pcl::PointNormal>::Ptr cloud) {
 	// Initialize a vector of cloud pointers
 	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> multiCloud;
 
@@ -280,12 +165,12 @@ int main (int argc, char** argv)
     pcl::PLYReader reader;
     pcl::PLYWriter writer;
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_a (new pcl::PointCloud<pcl::PointXYZ>);  
+    boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+
+    std::stringstream ss5;
+    ss5 << "stitched_clouds2/plants_tform_" << argv[1] << ".ply";
 
     // Import just the regular unmodified (other than rotated) point cloud
-    
-    std::stringstream ss5;
-    ss5 << "stitched_clouds6/plants_tform_" << argv[1] << ".ply";
-
     reader.read<pcl::PointXYZ> (ss5.str(), *cloud_a);
     cout << "Cloud_a size: " << cloud_a->size() << endl;
 
@@ -317,48 +202,85 @@ int main (int argc, char** argv)
 	std::vector<int> indices;
     pcl::removeNaNNormalsFromPointCloud(*cloud_normals,*cloud_normals, indices);
 
-	std::cerr << ">> Done: " << cloud_normals->size() << "\n";
-	writer.write ("cloud_normals.ply", *cloud_normals, false);
+	//std::cerr << ">> Done: " << cloud_normals->size() << "\n";
+	//writer.write ("cloud_normals.ply", *cloud_normals, false);
 
-    //-----------------------------------------Take a 20cm Slice------------------------------------------
-    pcl::PointCloud<pcl::PointNormal>::Ptr cloud_slice (new pcl::PointCloud<pcl::PointNormal>);
-    // Create passthrough filter
-    pcl::PassThrough<pcl::PointNormal> pass;
-    pass.setInputCloud (cloud_normals);
-    pass.setFilterFieldName ("x");
-    pass.setFilterLimits (-0.2, -0.0);;
-    pass.filter (*cloud_slice);
-    cout << "Cloud_slice size: " << cloud_slice->size() << endl;
-    //writer.write ("slice.ply", *cloud_slice, false);
+    for(int n=0; n<5; n++){
+	    //-----------------------------------------Take a 20cm Slice------------------------------------------
+	    pcl::PointCloud<pcl::PointNormal>::Ptr cloud_slice (new pcl::PointCloud<pcl::PointNormal>);
+	    // Create passthrough filter
+	    pcl::PassThrough<pcl::PointNormal> pass;
+	    pass.setInputCloud (cloud_normals);
+	    pass.setFilterFieldName ("x");
+	    pass.setFilterLimits (-0.2-0.1*(n), -0.1*(n));
+	    //pass.setFilterLimits (-0.2, -0.0);
+	    pass.filter (*cloud_slice);
+	    cout << "Cloud_slice size: " << cloud_slice->size() << endl;
+	    //writer.write ("slice.ply", *cloud_slice, false);
 
-	std::vector<int> indices3;
-    pcl::removeNaNFromPointCloud(*cloud_slice,*cloud_slice, indices3);
+		std::vector<int> indices3;
+	    pcl::removeNaNFromPointCloud(*cloud_slice,*cloud_slice, indices3);
 
 
-    //-------------------------------------Heat Map / Filter It-----------------------------------
+	    //-------------------------------------Heat Map / Filter It-----------------------------------
 
-    cloud_slice = filterFunction2(cloud_slice);
-	
-    writer.write ("slice_filtered.ply", *cloud_slice, false);
+	    cloud_slice = filterFunction2(cloud_slice);
+		
+	    writer.write ("slice_filtered.ply", *cloud_slice, false);
 
-	// Turn each cluster index into a point cloud
-	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> multiCloud;
+		// Turn each cluster index into a point cloud
+		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> multiCloud;
 
-    // Perform region growing on the sliced point cloud
-	multiCloud = regionGrow_ground(cloud_slice);
+	    // Perform region growing on the sliced point cloud
+		multiCloud = regionGrow(cloud_slice); //outputs a vector of clouds
 
-	cout << "Number of clouds: " << multiCloud.size() << endl;
+		cout << "Number of clouds: " << multiCloud.size() << endl;
 
-	//UNCOMMENT THIS TO WRITE THE GROUND-SLICE CLOUD CLUSTERS TO DISK
+	    pcl::PointCloud<pcl::PointXYZ>::Ptr spheres (new pcl::PointCloud<pcl::PointXYZ>);
+		spheres->width    = 50; //this is 50 because I assign the vector hotspots to be arbitrarily large
+		spheres->height   = 1;
+		spheres->is_dense = false;
+		spheres->points.resize (spheres->width * spheres->height);
 
-	for(int j=0; j<multiCloud.size(); j++){
-		std::cout << "PointCloud representing the Cluster: " << (multiCloud[j])->points.size () << " data points." << std::endl;
-		std::stringstream ss;
-		ss << "cloud_cluster_" << j << ".ply";
-		writer.write<pcl::PointXYZ> (ss.str (), *(multiCloud[j]), false);
+		for(int j=0; j<multiCloud.size(); j++){
+			std::cout << "PointCloud representing the Cluster: " << (multiCloud[j])->points.size () << " data points." << std::endl;
+			std::stringstream ss;
+			//ss << "cloud_cluster_" << n << "_" << j << ".ply";
+			//writer.write<pcl::PointXYZ> (ss.str (), *(multiCloud[j]), false);
+
+		    // Take the centroid of the stalk section
+			float x_sum=0; 
+			float y_sum=0; 
+			float z_sum=0;
+			for (int k = 0; k < multiCloud[j]->size(); k++) {
+				x_sum = (*multiCloud[j])[k].x + x_sum;
+				y_sum = (*multiCloud[j])[k].y + y_sum;
+				z_sum = (*multiCloud[j])[k].z + z_sum;
+			} 
+
+			spheres->points[j].x = x_sum/multiCloud[j]->size();
+			spheres->points[j].y = y_sum/multiCloud[j]->size();
+			spheres->points[j].z = z_sum/multiCloud[j]->size(); 
+		}
+
+    	std::stringstream ss;
+    	int sphereCount = 0;
+	  	for(int i=0; i<spheres->points.size(); i++){ //there are also 50 spheres because 
+	  		if(spheres->points[i].z != 0) {
+	  			//cout << "spheres->points[i].z: " << spheres->points[i].z << endl;
+	  			ss << "sphere" << i << "_" << n;
+	  			viewer->addSphere (spheres->points[i], 0.025, 1, 0, 0.0, ss.str()); 
+	  			//cout << "Color: " << (hotspots[sphereCount][2]-100)/100 << endl;
+	  			sphereCount++;
+	  		} 		
+	  	}
+
+		duration = (clock() - start) / (double) CLOCKS_PER_SEC;
+    	cout<<"TIME, FILTERING: " << duration << endl;
 	}
 
 
+	/*
 	//----------------------------------THIS IS THE START OF GROWING UPWARDS--------------------------------
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud1 (new pcl::PointCloud<pcl::PointXYZ>);
@@ -485,7 +407,7 @@ int main (int argc, char** argv)
 	    }
     	counter = 0;
 	}
-
+	*/
 
 	duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
     std::cout<<"Duration: "<< duration <<'\n';
@@ -504,6 +426,7 @@ int main (int argc, char** argv)
 		viewer->spinOnce (100);
 		boost::this_thread::sleep (boost::posix_time::microseconds (100000));
 	}
+
 	
     return(0);
 

@@ -247,10 +247,10 @@ void pairAlign (const PointCloud::Ptr cloud_src, const PointCloud::Ptr cloud_tgt
   //
   // Align
   pcl::IterativeClosestPoint<PointNormalT, PointNormalT> reg;
-  reg.setTransformationEpsilon (1e-6);
+  reg.setTransformationEpsilon (1e-6); //1e-6
   // Set the maximum distance between two correspondences (src<->tgt) to 10cm
   // Note: adjust this based on the size of your datasets
-  reg.setMaxCorrespondenceDistance (0.05);  //originally 0.15
+  reg.setMaxCorrespondenceDistance (0.15);  //originally 0.15
   // Set the point representation
   reg.setPointRepresentation (boost::make_shared<const MyPointRepresentation> (point_representation));
 
@@ -269,7 +269,7 @@ void pairAlign (const PointCloud::Ptr cloud_src, const PointCloud::Ptr cloud_tgt
   //for (int i = 0; i < 100; ++i)
 
   int i=0;
-  while (reg.getMaxCorrespondenceDistance() > 0.01)
+  while (reg.getMaxCorrespondenceDistance() > 0.02)
   {
     i = i+1;
     //PCL_INFO ("Iteration Nr. %d.\n", i);
@@ -293,7 +293,7 @@ void pairAlign (const PointCloud::Ptr cloud_src, const PointCloud::Ptr cloud_tgt
     prev = reg.getLastIncrementalTransformation ();
 
     // visualize current state
-    //showCloudsRight(points_with_normals_tgt, points_with_normals_src);   
+    showCloudsRight(points_with_normals_tgt, points_with_normals_src);   
   }
 
   cout << "Iterations: " << i << endl;
@@ -574,324 +574,523 @@ std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> regionGrow_ground(pcl::PointClo
 int main (int argc, char** argv)
 {
 
-  std::clock_t start;
-  double duration;
-  start = std::clock();
+  for(int offset = 15; offset < 16; offset+=1) {
 
-  float u;
-  float v;
-
-  vector<Point3f> list_points3d;
-  vector<Point2f> list_points2d;
-  vector<KeyPoint> keypoints_im2;
-
-  const char* point_cloud_filename = 0;
-  const char* point_cloud_filename_2 = 0;
-  int scale_factor=4;
-
-  point_cloud_filename = "cloud.ply";
-
-  std::vector< DMatch > good_matches;
-
-  Mat disp, disp8;
-
-  Mat descriptors_1, descriptors_2;
-
-  Mat xyz, inliers;
-
-  bool flags = 1;
-  Mat distCoeffs = Mat::zeros(4, 1, CV_64FC1);
-  Mat rvec = Mat::zeros(3, 1, CV_64FC1);
-  Mat tvec = Mat::zeros(3, 1, CV_64FC1);
-
-  Mat R_matrix = Mat::zeros(3, 3, CV_64FC1);
-  Mat t_matrix = Mat::zeros(3, 1, CV_64FC1);
-
-  bool useExtrinsicGuess = false;
-  int iterationsCount=10000;
-  float reprojectionError=5.0;
-  double confidence=0.99;
-
-
-  Mat jacobian;
-  double aspectRatio = 0;
-  vector<Point2f> imagePoints; 
-
-  Point pt;
-  vector<KeyPoint> keypoints_projected;
-
-  Mat other, t_total;
-
-  PointCloud::Ptr ptCloud (new PointCloud);
-  PointCloud::Ptr cloud_filtered (new PointCloud);
-  PointCloud::Ptr cloud_filtered_old (new PointCloud);
-  int max_z = 1.0e4;
-
-
-  //----------------------------------CONFIGURE STEREO AND CAMERA SETTINGS----------------------------------
-
-  //assign SGBM because it gives superior results
-  enum { STEREO_BM=0, STEREO_SGBM=1, STEREO_HH=2, STEREO_VAR=3, STEREO_3WAY=4 };
-  int alg = STEREO_SGBM;
-
-  int color_mode = alg == STEREO_BM ? 0 : -1;
-
-  int SADWindowSize = 11;
-  bool no_display;
-  float scale;
-
-  int minDisparity = 80;
-  int numberOfDisparities = 224;
-  int uniquenessRatio = 10;
-  int speckleWindowSize = 10;
-  int speckleRange = 1;
-  int disp12MaxDiff = 10;
-  int P1 = pow(8*3*SADWindowSize,2);
-  int P2 = pow(32*3*SADWindowSize,2);
-  bool fullDP=false;
-  int preFilterCap = 0;
-  int mode;
-
-  //camera intrinsics of my specific camera
-  float cx = 1688/scale_factor;
-  float cy = 1352/scale_factor;
-  float f = 2421/scale_factor;
-  float T = -.0914*scale_factor; 
-
-  // M1 is the camera intrinsics of the left camera (known)
-  Mat M1 = (Mat_<double>(3,3) << 2421.988247695817/scale_factor, 0.0, 1689.668741757609/scale_factor, 0.0, 2424.953969600827/scale_factor, 1372.029058638022/scale_factor, 0.0, 0.0, 1.0);
-
-  int minHessian = 200; //the hessian affects the number of keypoints
-
-  Mat Q = (Mat_<double>(4,4) << -1,0,0,cx,0,1,0,-cy,0,0,0,f,0,0,1/T,0);
-
-  int cx1;
-  int cx2;
-  int cx3;
-  char buffer [100];
-  char img1_filename[100];
-  char img2_filename[100];
-  char img3_filename[100];
-
-
-  // Create a PCLVisualizer object
-  //p = new pcl::visualization::PCLVisualizer (argc, argv, "Pairwise Incremental Registration example");
-  //p->createViewPort (0.0, 0, 0.5, 1.0, vp_1);
-  //p->createViewPort (0.5, 0, 1.0, 1.0, vp_2);
-
-  PointCloud::Ptr source, target;
-  Eigen::Matrix4f GlobalTransform = Eigen::Matrix4f::Identity (), pairTransform;
-
-  std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> cloud_vec;
-
-  for (int w=0; w<5; w++)
-  {
-    PointCloud::Ptr result (new PointCloud);
-    //start a timer just for kicks
-    clock_t start;
+    std::clock_t start;
     double duration;
-    double feat_time;
-    start = clock();
-    
-    cout << "" << endl;
-    cout << "" << endl;
-    cout << "Iteration: " << w << endl;
+    start = std::clock();
 
-    //------------------------------------LOAD IMAGES-----------------------------------------
-    //The first two images are the stereo pair. The third image is the one that has moved (we don't know its position)
+    // Create a PCLVisualizer object
+    p = new pcl::visualization::PCLVisualizer (argc, argv, "Pairwise Incremental Registration example");
+    p->createViewPort (0.0, 0, 0.5, 1.0, vp_1);
+    p->createViewPort (0.5, 0, 1.0, 1.0, vp_2);
 
-    int offset = 5;
-    int imstart = w + offset;
+    float u;
+    float v;
 
-    if (imstart<9) {
-      cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images/left00000%d.jpg", imstart);
-      cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images/right00000%d.jpg", imstart);
-      cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images/left00000%d.jpg", imstart+1);}    
-    else if (imstart==9) {
-      cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images/left00000%d.jpg", imstart);
-      cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images/right00000%d.jpg", imstart);
-      cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images/left0000%d.jpg", imstart+1);}     
-    else {
-      cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images/left0000%d.jpg", imstart);  
-      cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images/right0000%d.jpg", imstart); 
-      cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images/left0000%d.jpg", imstart+1);}
+    //int offset = 5;
 
+    vector<Point3f> list_points3d;
+    vector<Point2f> list_points2d;
+    vector<KeyPoint> keypoints_im2;
 
-    //std::string img1_filename = "../Sorghum_Stitching/images/left000007.jpg";
-    //std::string img2_filename = "../Sorghum_Stitching/images/right000007.jpg";
-    //std::string img3_filename = "../Sorghum_Stitching/images/left000008.jpg";
+    const char* point_cloud_filename = 0;
+    const char* point_cloud_filename_2 = 0;
+    int scale_factor=4;
 
-    //-------------------------------------------SCALE IMAGES-------------------------------------------
+    point_cloud_filename = "cloud.ply";
 
-    scaleImage scaledown; //(img1_filename, color_mode);
-    scaleImage scaledown2; //(img3_filename, color_mode);
-    scaleImage scaledown3; //(img2_filename, color_mode);
+    std::vector< DMatch > good_matches;
 
-    Mat img1 = scaledown.downSize(img1_filename, color_mode);
-    Mat img2 = scaledown2.downSize(img2_filename, color_mode);
-    Mat img3 = scaledown3.downSize(img3_filename, color_mode);
+    Mat disp, disp8;
 
-    Size img_size = img1.size();
+    Mat descriptors_1, descriptors_2;
 
-    feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
-    cout<<"TIME, load image and downsample: " << feat_time << endl;
+    Mat xyz, inliers;
 
-    //------------------------------------FIND MATCHES-----------------------------------------
+    bool flags = 1;
+    Mat distCoeffs = Mat::zeros(4, 1, CV_64FC1);
+    //Mat rvec = Mat::zeros(3, 1, CV_64FC1);
+    //Mat tvec = Mat::zeros(3, 1, CV_64FC1);
+    Mat rvec = (Mat_<double>(3,3) << 1,0,0,0,1,0,0,0,1);
+    Mat tvec = (Mat_<double>(3,1) << 0.04, -0.35, 0);
 
-    //-- Step 1: Detect keypoints
+    Mat R_matrix = Mat::zeros(3, 3, CV_64FC1);
+    Mat t_matrix = Mat::zeros(3, 1, CV_64FC1);
 
-    SurfFeatureDetector detector(minHessian);
-
-    std::vector<KeyPoint> keypoints_1, keypoints_2;
-
-    detector.detect( img1, keypoints_1 );
-    detector.detect( img3, keypoints_2 );
-
-    //-- Step 2: Calculate descriptors (feature vectors)
-    SurfDescriptorExtractor extractor;
-
-    extractor.compute( img1, keypoints_1, descriptors_1 );
-    extractor.compute( img3, keypoints_2, descriptors_2 );
-
-    //-- Step 3: Choose only the "good" matches
-    featureMatch detect;
-    good_matches = detect.goodmatchDetect(keypoints_1, keypoints_2, img1, img3);
-
-    feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
-    cout<<"TIME, feature matching: "<< feat_time << endl;
-
-    //waitKey(0);
-
-
-    //-----------------------------------------------CONVERT TWO IMAGES TO DISPARITY IMAGE-----------------------------------------------
-
-    StereoSGBM sgbm(minDisparity, numberOfDisparities, SADWindowSize, P1, P2, disp12MaxDiff, preFilterCap,\
-        uniquenessRatio, speckleWindowSize, speckleRange, fullDP);  
-
-    //int64 t = getTickCount();
-
-    // convert the two images into a disparity image
-    sgbm(img1, img2, disp);
-    //t = getTickCount() - t;
-    //printf("SGBM time elapsed: %fms\n", t*1000/getTickFrequency());
-
-    if( alg != STEREO_VAR )
-        disp.convertTo(disp8, CV_8U, 255/(numberOfDisparities*16.));
-    else 
-        disp.convertTo(disp8, CV_8U);
-
-    feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
-    cout<<"TIME, SGBM: "<< feat_time << endl;
-
-    //---------------------------------------------------BUILD 3D CLOUD------------------------------------------------------    
-    
-    // Project to 3D, points filled into xyz mat format
-    reprojectImageTo3D(disp8, xyz, Q, true);
-
-    //-------------------------------------------------FIND FEATURE POINTS IN 3D----------------------------------------------
-
-    //This loops through all of the matched feature points and finds the image coordinate in 3D. 
-    //If the z-coordinate is less than 3D (ie if the block matching found a match),
-    //then the 3d points are saved to a vector and the 2D feature points in the second image
-    for( int i = 0; i < (int)good_matches.size(); i++ )
-    {
-        u = keypoints_1[good_matches[i].queryIdx].pt.x;
-        v = keypoints_1[good_matches[i].queryIdx].pt.y;
-        Vec3f point = xyz.at<Vec3f>(v, u);
-        if (point[2]<10000)
-        {
-            list_points3d.push_back(Point3f(point[0],point[1],point[2]));
-            list_points2d.push_back(Point2f(keypoints_2[good_matches[i].trainIdx].pt.x, keypoints_2[good_matches[i].trainIdx].pt.y));
-            keypoints_im2.push_back(KeyPoint(keypoints_2[good_matches[i].trainIdx]));
-        }
-    }
-
-    feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
-    cout<<"TIME, build cloud and features: "<< feat_time << endl;
-
-//----------------------------------------------------------SOLVE PNP------------------------------------------------------
-
-    int64 t_pnp = getTickCount();
-
-    solvePnPRansac( list_points3d, list_points2d, M1, distCoeffs, rvec, tvec, useExtrinsicGuess, iterationsCount, reprojectionError, confidence, inliers, flags);
-    
+    //***********************
     Rodrigues(rvec,R_matrix);
     t_matrix = tvec;
+    //***********************
 
-    cout << "Rotation matrix: " << R_matrix << endl;
-    cout << "Translation matrix: " << t_matrix << endl;
-    cout << "\n"<<"Number of inliers: " << inliers.rows << endl;
-
-    feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
-    cout<<"TIME, solve PnP: "<< feat_time << endl;
-  
-//---------------------------------------------CONVERT POINT CLOUD TO PCL FORMAT-------------------------------------------
+    bool useExtrinsicGuess = false;
+    int iterationsCount=100000;
+    float reprojectionError=5.0;
+    double confidence=0.99;
 
 
-    for(int row = 0; row < xyz.rows; row++)
+    Mat jacobian;
+    double aspectRatio = 0;
+    vector<Point2f> imagePoints; 
+
+    Point pt;
+    vector<KeyPoint> keypoints_projected;
+
+    Mat other, t_total;
+
+    PointCloud::Ptr ptCloud (new PointCloud);
+    PointCloud::Ptr cloud_filtered (new PointCloud);
+    PointCloud::Ptr cloud_filtered_old (new PointCloud);
+    int max_z = 1.0e4;
+
+
+    //----------------------------------CONFIGURE STEREO AND CAMERA SETTINGS----------------------------------
+
+    //assign SGBM because it gives superior results
+    enum { STEREO_BM=0, STEREO_SGBM=1, STEREO_HH=2, STEREO_VAR=3, STEREO_3WAY=4 };
+    int alg = STEREO_SGBM;
+
+    int color_mode = alg == STEREO_BM ? 0 : -1;
+
+    int SADWindowSize = 11;
+    bool no_display;
+    float scale;
+
+    int minDisparity = 80;
+    int numberOfDisparities = 224;
+    int uniquenessRatio = 10;
+    int speckleWindowSize = 10;
+    int speckleRange = 1;
+    int disp12MaxDiff = 10;
+    int P1 = pow(8*3*SADWindowSize,2);
+    int P2 = pow(32*3*SADWindowSize,2);
+    bool fullDP=false;
+    int preFilterCap = 0;
+    int mode;
+
+    //camera intrinsics of my specific camera
+    float cx = 1688/scale_factor;
+    float cy = 1352/scale_factor;
+    float f = 2421/scale_factor;
+    float T = -.0914*scale_factor; 
+
+    // M1 is the camera intrinsics of the left camera (known)
+    Mat M1 = (Mat_<double>(3,3) << 2421.988247695817/scale_factor, 0.0, 1689.668741757609/scale_factor, 0.0, 2424.953969600827/scale_factor, 1372.029058638022/scale_factor, 0.0, 0.0, 1.0);
+
+    int minHessian = 200; //the hessian affects the number of keypoints
+
+    Mat Q = (Mat_<double>(4,4) << -1,0,0,cx,0,1,0,-cy,0,0,0,f,0,0,1/T,0);
+
+    int cx1;
+    int cx2;
+    int cx3;
+    char buffer [100];
+    char img1_filename[100];
+    char img2_filename[100];
+    char img3_filename[100];
+
+
+    // Create a PCLVisualizer object
+    //p = new pcl::visualization::PCLVisualizer (argc, argv, "Pairwise Incremental Registration example");
+    //p->createViewPort (0.0, 0, 0.5, 1.0, vp_1);
+    //p->createViewPort (0.5, 0, 1.0, 1.0, vp_2);
+
+    PointCloud::Ptr source, target;
+    Eigen::Matrix4f GlobalTransform = Eigen::Matrix4f::Identity (), pairTransform;
+
+    std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> cloud_vec;
+
+
+    for (int w=0; w<5; w++)
     {
-        for(int col = 0; col < xyz.cols; col++)
-        {
-            Vec3f point = xyz.at<Vec3f>(row,col);
-            Vec3b intensity = img1.at<Vec3b>(row,col);
-            uchar blue = intensity.val[0];
-            uchar green = intensity.val[1];
-            uchar red = intensity.val[2];
-            //if (row<5 && col<5){cout << point[0] << ", " << point[1] << ", " << point[2] << endl;}
+      PointCloud::Ptr result (new PointCloud);
+      //start a timer just for kicks
+      clock_t start;
+      double duration;
+      double feat_time;
+      start = clock();
+      
+      cout << "" << endl;
+      cout << "" << endl;
+      cout << "Iteration: " << w << endl;
 
-            if(fabs(point[2] - max_z) < FLT_EPSILON || fabs(point[2]) > max_z) continue;
-            //i++;
-            //cout << i << endl;
-            //pcl::PointCloud<PointT> point_loc;
-            PointT point_loc;
-            point_loc.z = point[2];
-            point_loc.x = point[0];
-            point_loc.y = point[1];
-            point_loc.r = red;
-            point_loc.g = green;
-            point_loc.b = blue;
-            ptCloud->points.push_back(point_loc);
+      //------------------------------------LOAD IMAGES-----------------------------------------
+      //The first two images are the stereo pair. The third image is the one that has moved (we don't know its position)
+
+      //int offset = 20;
+      int imstart = w + offset;
+
+      if (imstart<9) {
+        cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images3/left_00000%d.jpg", imstart);
+        cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images3/right_00000%d.jpg", imstart);
+        cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images3/left_00000%d.jpg", imstart+1);}    
+      else if (imstart==9) {
+        cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images3/left_00000%d.jpg", imstart);
+        cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images3/right_00000%d.jpg", imstart);
+        cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images3/left_0000%d.jpg", imstart+1);}     
+      else if (imstart<99){
+        cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images3/left_0000%d.jpg", imstart);  
+        cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images3/right_0000%d.jpg", imstart); 
+        cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images3/left_0000%d.jpg", imstart+1);}
+      else if (imstart==99){
+        cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images3/left_0000%d.jpg", imstart);  
+        cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images3/right_0000%d.jpg", imstart); 
+        cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images3/left_000%d.jpg", imstart+1);}  
+      else {
+        cx1 = snprintf ( img1_filename, 100, "../Sorghum_Stitching/images3/left_000%d.jpg", imstart);  
+        cx2 = snprintf ( img2_filename, 100, "../Sorghum_Stitching/images3/right_000%d.jpg", imstart); 
+        cx3 = snprintf ( img3_filename, 100, "../Sorghum_Stitching/images3/left_000%d.jpg", imstart+1);}
+
+
+      //std::string img1_filename = "../Sorghum_Stitching/images/left000007.jpg";
+      //std::string img2_filename = "../Sorghum_Stitching/images/right000007.jpg";
+      //std::string img3_filename = "../Sorghum_Stitching/images/left000008.jpg";
+
+      //-------------------------------------------SCALE IMAGES-------------------------------------------
+
+      scaleImage scaledown; //(img1_filename, color_mode);
+      scaleImage scaledown2; //(img3_filename, color_mode);
+      scaleImage scaledown3; //(img2_filename, color_mode);
+
+      Mat img1 = scaledown.downSize(img1_filename, color_mode);
+      Mat img2 = scaledown2.downSize(img2_filename, color_mode);
+      Mat img3 = scaledown3.downSize(img3_filename, color_mode);
+
+      Size img_size = img1.size();
+
+      feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
+      cout<<"TIME, load image and downsample: " << feat_time << endl;
+
+      //------------------------------------FIND MATCHES-----------------------------------------
+
+      /*
+      //-- Step 1: Detect keypoints
+
+      SurfFeatureDetector detector(minHessian);
+
+      std::vector<KeyPoint> keypoints_1, keypoints_2;
+
+      detector.detect( img1, keypoints_1 );
+      detector.detect( img3, keypoints_2 );
+
+      //-- Step 2: Calculate descriptors (feature vectors)
+      SurfDescriptorExtractor extractor;
+
+      extractor.compute( img1, keypoints_1, descriptors_1 );
+      extractor.compute( img3, keypoints_2, descriptors_2 );
+
+      //-- Step 3: Choose only the "good" matches
+      featureMatch detect;
+      good_matches = detect.goodmatchDetect(keypoints_1, keypoints_2, img1, img3);
+
+      feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
+      cout<<"TIME, feature matching: "<< feat_time << endl;
+
+      //waitKey(0);
+      */
+
+      //-----------------------------------------------CONVERT TWO IMAGES TO DISPARITY IMAGE-----------------------------------------------
+
+      StereoSGBM sgbm(minDisparity, numberOfDisparities, SADWindowSize, P1, P2, disp12MaxDiff, preFilterCap,\
+          uniquenessRatio, speckleWindowSize, speckleRange, fullDP);  
+
+      //int64 t = getTickCount();
+
+      // convert the two images into a disparity image
+      sgbm(img1, img2, disp);
+      //t = getTickCount() - t;
+      //printf("SGBM time elapsed: %fms\n", t*1000/getTickFrequency());
+
+      if( alg != STEREO_VAR )
+          disp.convertTo(disp8, CV_8U, 255/(numberOfDisparities*16.));
+      else 
+          disp.convertTo(disp8, CV_8U);
+
+      feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
+      cout<<"TIME, SGBM: "<< feat_time << endl;
+
+      //---------------------------------------------------BUILD 3D CLOUD------------------------------------------------------    
+      
+      // Project to 3D, points filled into xyz mat format
+      reprojectImageTo3D(disp8, xyz, Q, true);
+
+      /*
+      //-------------------------------------------------FIND FEATURE POINTS IN 3D----------------------------------------------
+
+      //This loops through all of the matched feature points and finds the image coordinate in 3D. 
+      //If the z-coordinate is less than 3D (ie if the block matching found a match),
+      //then the 3d points are saved to a vector and the 2D feature points in the second image
+      for( int i = 0; i < (int)good_matches.size(); i++ )
+      {
+          u = keypoints_1[good_matches[i].queryIdx].pt.x;
+          v = keypoints_1[good_matches[i].queryIdx].pt.y;
+          Vec3f point = xyz.at<Vec3f>(v, u);
+          if (point[2]<10000)
+          {
+              list_points3d.push_back(Point3f(point[0],point[1],point[2]));
+              list_points2d.push_back(Point2f(keypoints_2[good_matches[i].trainIdx].pt.x, keypoints_2[good_matches[i].trainIdx].pt.y));
+              keypoints_im2.push_back(KeyPoint(keypoints_2[good_matches[i].trainIdx]));
+          }
+      }
+
+      feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
+      cout<<"TIME, build cloud and features: "<< feat_time << endl;
+
+  //----------------------------------------------------------SOLVE PNP------------------------------------------------------
+
+      int64 t_pnp = getTickCount();
+
+      //solvePnPRansac( list_points3d, list_points2d, M1, distCoeffs, rvec, tvec, useExtrinsicGuess, iterationsCount, reprojectionError, confidence, inliers, flags);
+      
+      //Rodrigues(rvec,R_matrix);
+      //t_matrix = tvec;
+
+      int flag = 0;
+      int RANSACcounter= 0;
+      while (flag == 0) {
+        //solvePnPRansac( list_points3d, list_points2d, M1, distCoeffs, rvec, tvec, useExtrinsicGuess, iterationsCount, reprojectionError, confidence, inliers, flags);
+        
+        Rodrigues(rvec,R_matrix);
+        t_matrix = tvec;
+
+        //cout << "Rotation matrix: " << R_matrix << endl;
+        cout << "Translation matrix: " << t_matrix << endl;
+
+        if ((t_matrix.at<double>(1,0)>0) && (RANSACcounter<4))
+        {
+          cout << "\033[1;31mMATCH FAIL COUNTER\033[0m\n" << endl;
+          RANSACcounter++;
         }
+        else if (RANSACcounter==4){
+          cout << "\033[1;31mIMAGE MATCHING FAILED\033[0m\n" << endl;   
+          flag =1;     
+        }
+        else {flag = 1;}
+      }
+
+
+
+
+      cout << "Rotation matrix: " << R_matrix << endl;
+      cout << "Translation matrix: " << t_matrix << endl;
+      cout << "\n"<<"Number of inliers: " << inliers.rows << endl;
+
+      feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
+      cout<<"TIME, solve PnP: "<< feat_time << endl;
+    */
+  //---------------------------------------------CONVERT POINT CLOUD TO PCL FORMAT-------------------------------------------
+
+
+      for(int row = 0; row < xyz.rows; row++)
+      {
+          for(int col = 0; col < xyz.cols; col++)
+          {
+              Vec3f point = xyz.at<Vec3f>(row,col);
+              Vec3b intensity = img1.at<Vec3b>(row,col);
+              uchar blue = intensity.val[0];
+              uchar green = intensity.val[1];
+              uchar red = intensity.val[2];
+              //if (row<5 && col<5){cout << point[0] << ", " << point[1] << ", " << point[2] << endl;}
+
+              if(fabs(point[2] - max_z) < FLT_EPSILON || fabs(point[2]) > max_z) continue;
+              //i++;
+              //cout << i << endl;
+              //pcl::PointCloud<PointT> point_loc;
+              PointT point_loc;
+              point_loc.z = point[2];
+              point_loc.x = point[0];
+              point_loc.y = point[1];
+              point_loc.r = red;
+              point_loc.g = green;
+              point_loc.b = blue;
+              ptCloud->points.push_back(point_loc);
+          }
+      }
+
+      //ptCloud->width = (int)xyz.cols; 
+      //ptCloud->height = (int)xyz.rows; 
+
+      // end clock, for kicks
+      //duration = (clock() - start) / (double) CLOCKS_PER_SEC;
+      //std::cout<< "\n" <<"Total time: "<< duration <<'\n';
+
+      feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
+      cout<<"TIME, convert cloud to PCL: "<< feat_time << endl;
+
+
+  //---------------------------------------------------OFFSET CLOUD AND FILTER-------------------------------------------
+      
+      if (w == 0)
+        other = Mat::zeros(3, 1, CV_64FC1);
+
+      Eigen::Affine3f transform_2 = Eigen::Affine3f::Identity();
+
+      // Define a translation of 2.5 meters on the x axis.
+      transform_2.translation() << other.at<double>(0,0), other.at<double>(0,1), other.at<double>(0,2);
+      float theta=0.0;
+      // The same rotation matrix as before; theta radians arround Z axis
+      transform_2.rotate (Eigen::AngleAxisf (theta, Eigen::Vector3f::UnitZ()));
+
+      // Print the transformation
+      //printf ("\nMethod #2: using an Affine3f\n");
+      //std::cout << transform_2.matrix() << std::endl;
+
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
+      pcl::transformPointCloud(*ptCloud, *transformed_cloud, transform_2);
+      
+
+      //---------Create a conditional removal filter to remove black pixels---------
+      int rMax = 255;
+      int rMin = 15;
+      int gMax = 255;
+      int gMin = 15;
+      int bMax = 255;
+      int bMin = 15;
+      pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr color_cond (new pcl::ConditionAnd<pcl::PointXYZRGB> ());
+      color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("r", pcl::ComparisonOps::LT, rMax)));
+      color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("r", pcl::ComparisonOps::GT, rMin)));
+      color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("g", pcl::ComparisonOps::LT, gMax)));
+      color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("g", pcl::ComparisonOps::GT, gMin)));
+      color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("b", pcl::ComparisonOps::LT, bMax)));
+      color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("b", pcl::ComparisonOps::GT, bMin)));
+
+      // build the filter
+      pcl::ConditionalRemoval<pcl::PointXYZRGB> condrem (color_cond);
+      condrem.setInputCloud (transformed_cloud);
+      condrem.setKeepOrganized(true);
+      
+      // apply filter
+      condrem.filter (*cloud_filtered);
+
+      pcl::PassThrough<pcl::PointXYZRGB> pass;
+      pass.setInputCloud (cloud_filtered);
+      pass.setFilterFieldName ("z");
+      pass.setFilterLimits (-1.8, -1.0);
+      pass.filter (*cloud_filtered);
+
+      //pcl::PLYWriter writer;
+      //writer.write<pcl::PointXYZRGB> ("garbage.ply", *cloud_filtered, false);
+
+      //-----Create the statistical outlier filtering object-----
+      pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
+      
+      // set thresholds,tree size, and apply filter
+      sor.setInputCloud (cloud_filtered);
+      sor.setMeanK (50);
+      sor.setStddevMulThresh (1.0);
+      sor.filter (*cloud_filtered);
+      
+      // print post-filtered size
+      //std::cerr << "Cloud after filtering: " << std::endl;
+      //std::cerr << *cloud_filtered << std::endl;
+      
+      // remove the nans so we can perform more filtering later
+      std::vector<int> indices;
+      pcl::removeNaNFromPointCloud(*cloud_filtered,*cloud_filtered, indices);
+
+      feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
+      cout<<"TIME, offset cloud and filter: "<< feat_time << endl;
+
+
+  //---------------------------------------------------ICP AND WRITE TO FILE-------------------------------------------
+
+      //int count = 0;
+      if (w>0)
+      {
+        source = cloud_filtered_old;
+        //cout << cloud_filtered_old << endl;
+        target = cloud_filtered;
+
+        // Add visualization data
+        showCloudsLeft(source, target);
+
+        //PointCloud::Ptr temp (new PointCloud);
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp (new pcl::PointCloud<pcl::PointXYZRGB>);
+        PCL_INFO ("Aligning..."); //%s (%d) with %s (%d).\n", source.f_name.c_str (), source->points.size (), target.f_name.c_str (), target->points.size ());
+        pairAlign (source, target, temp, pairTransform, true);
+        
+        //transform current pair into the global transform
+        pcl::transformPointCloud (*temp, *result, GlobalTransform);
+
+        //update the global transform
+        GlobalTransform = GlobalTransform * pairTransform;
+
+        cout << "GlobalTform: \n" << GlobalTransform << endl;
+        cout << GlobalTransform(12) << endl;
+
+        cloud_vec.push_back(result);
+      }
+
+      copyPointCloud(*cloud_filtered, *cloud_filtered_old); 
+
+      if (w==0){
+        //t_total = Mat::zeros(3, 1, CV_64FC1);
+        //other = //t_matrix;
+        other.at<double>(0,0) = t_matrix.at<double>(0,0);
+        other.at<double>(0,1) = t_matrix.at<double>(0,1);
+        other.at<double>(0,2) = t_matrix.at<double>(0,2);
+        //other = Mat::zeros(3, 1, CV_64FC1);
+      }
+      else{
+        //t_total = other;
+        other.at<double>(0,0) = t_matrix.at<double>(0,0) + other.at<double>(0,0);// + t_matrix.at<double>(0,0);// + GlobalTransform(12) + other.at<double>(0,0); //t_total+t_matrix;
+        other.at<double>(0,1) = t_matrix.at<double>(0,1) + other.at<double>(0,1);// + t_matrix.at<double>(0,1);// + GlobalTransform(13) + other.at<double>(0,1);
+        other.at<double>(0,2) = t_matrix.at<double>(0,2) + other.at<double>(0,2);// + t_matrix.at<double>(0,2);// + GlobalTransform(14) + other.at<double>(0,2);
+      }
+      cout << "other: " << other << endl;
+      cout << "t_matrix: " << t_matrix << endl; 
+
+      ptCloud->clear();
     }
 
-    //ptCloud->width = (int)xyz.cols; 
-    //ptCloud->height = (int)xyz.rows; 
 
-    // end clock, for kicks
-    //duration = (clock() - start) / (double) CLOCKS_PER_SEC;
-    //std::cout<< "\n" <<"Total time: "<< duration <<'\n';
+    //cout << "Cloud_vec size: " << cloud_vec.size() << endl;
 
-    feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
-    cout<<"TIME, convert cloud to PCL: "<< feat_time << endl;
+    pcl::PLYWriter writer;
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_a_filtered (new pcl::PointCloud<pcl::PointXYZRGB>);  
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_b (new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    for (int i = 0; i < cloud_vec.size(); i++)
+    {
+      //std::stringstream ss;
+      //ss << "wtf_" << i << ".ply";
+      //writer.write<pcl::PointXYZRGB> (ss.str (), *cloud_vec[i], false);
+      pcl::VoxelGrid<pcl::PointXYZRGB> sor;
+      sor.setInputCloud (cloud_vec[i]);
+      sor.setLeafSize (0.005f, 0.005f, 0.005f);
+      sor.filter (*cloud_a_filtered);
+
+      std::cerr << "PointCloud after filtering: " << cloud_a_filtered->width * cloud_a_filtered->height 
+       << " data points (" << pcl::getFieldsList (*cloud_a_filtered) << ")." << endl;
+
+      stringstream ss5;
+      pcl::PLYWriter writer;
+      ss5 << i << ".ply";
+      writer.write<pcl::PointXYZRGB> (ss5.str(), *cloud_a_filtered, false); 
+
+      *cloud_b+=*cloud_a_filtered;
+      cloud_a_filtered ->clear();
+    }  
+
+    std::cerr << *cloud_b << std::endl;
+
+    writer.write<pcl::PointXYZRGB> ("Concatenate_BIG2.ply", *cloud_b, false); 
 
 
-//---------------------------------------------------OFFSET CLOUD AND FILTER-------------------------------------------
-    if (w == 0)
-      other = Mat::zeros(3, 1, CV_64FC1);
-
-    Eigen::Affine3f transform_2 = Eigen::Affine3f::Identity();
-
-    // Define a translation of 2.5 meters on the x axis.
-    transform_2.translation() << -other.at<double>(0,0), other.at<double>(0,1), other.at<double>(0,2);
-    float theta=0.0;
-    // The same rotation matrix as before; theta radians arround Z axis
-    transform_2.rotate (Eigen::AngleAxisf (theta, Eigen::Vector3f::UnitZ()));
-
-    // Print the transformation
-    //printf ("\nMethod #2: using an Affine3f\n");
-    //std::cout << transform_2.matrix() << std::endl;
-
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
-    pcl::transformPointCloud(*ptCloud, *transformed_cloud, transform_2);
 
 
-    //---------Create a conditional removal filter to remove black pixels---------
-    int rMax = 255;
-    int rMin = 15;
+
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_b_filtered (new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    //-------------------------Create a conditional removal filter to remove green pixels------------------------
+    int rMax = 80; //kept low to keep out orange from traffic cone
+    int rMin = 50; //numbers lower than 50 will yield green leaves
     int gMax = 255;
-    int gMin = 15;
-    int bMax = 255;
-    int bMin = 15;
+    int gMin = 0;
+    int bMax = 28; //this blue is actually the critical value
+    int bMin = 0;
     pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr color_cond (new pcl::ConditionAnd<pcl::PointXYZRGB> ());
     color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("r", pcl::ComparisonOps::LT, rMax)));
     color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("r", pcl::ComparisonOps::GT, rMin)));
@@ -902,234 +1101,166 @@ int main (int argc, char** argv)
 
     // build the filter
     pcl::ConditionalRemoval<pcl::PointXYZRGB> condrem (color_cond);
-    condrem.setInputCloud (transformed_cloud);
+    condrem.setInputCloud (cloud_b);
     condrem.setKeepOrganized(true);
-    
+
     // apply filter
-    condrem.filter (*cloud_filtered);
+    condrem.filter (*cloud_b_filtered);
 
-    pcl::PassThrough<pcl::PointXYZRGB> pass;
-    pass.setInputCloud (cloud_filtered);
-    pass.setFilterFieldName ("z");
-    pass.setFilterLimits (-1.6, -1.0);
-    pass.filter (*cloud_filtered);
-
-    //-----Create the statistical outlier filtering object-----
-    pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
-    
-    // set thresholds,tree size, and apply filter
-    sor.setInputCloud (cloud_filtered);
-    sor.setMeanK (50);
-    sor.setStddevMulThresh (1.0);
-    sor.filter (*cloud_filtered);
-    
-    // print post-filtered size
-    //std::cerr << "Cloud after filtering: " << std::endl;
-    //std::cerr << *cloud_filtered << std::endl;
-    
-    // remove the nans so we can perform more filtering later
     std::vector<int> indices;
-    pcl::removeNaNFromPointCloud(*cloud_filtered,*cloud_filtered, indices);
+    pcl::removeNaNFromPointCloud(*cloud_b_filtered,*cloud_b_filtered, indices);
 
-    feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
-    cout<<"TIME, offset cloud and filter: "<< feat_time << endl;
+    //std::cerr << "Cloud after filtering: " << std::endl;
+    //std::cerr << *cloud_a_filtered << std::endl;
+
+    writer.write<pcl::PointXYZRGB> ("filtered_brown.ply", *cloud_b_filtered, false);
+
+   //-----------------------------------------Initialize for RANSAC------------------------------------------
+    pcl::NormalEstimation<PointT, pcl::Normal> ne;
+    pcl::SACSegmentationFromNormals<PointT, pcl::Normal> seg; 
+    pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT> ());
+    pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
+    pcl::ModelCoefficients::Ptr coefficients_plane (new pcl::ModelCoefficients), coefficients_cylinder (new pcl::ModelCoefficients);
+    pcl::PointIndices::Ptr inliers_plane (new pcl::PointIndices), inliers_cylinder (new pcl::PointIndices);
+    pcl::ExtractIndices<PointT> extract;
 
 
-//---------------------------------------------------ICP AND WRITE TO FILE-------------------------------------------
+    //-----------------------------------------Perform RANSAC on Ground Plane------------------------------------------
+    // Estimate point normals
+    ne.setSearchMethod (tree);
+    ne.setInputCloud (cloud_b_filtered);
+    ne.setKSearch (50);
+    ne.compute (*cloud_normals);
 
-    //int count = 0;
-    if (w>0)
-    {
-      source = cloud_filtered_old;
-      //cout << cloud_filtered_old << endl;
-      target = cloud_filtered;
+    //Eigen::Vector3f axis = Eigen::Vector3f(1.0,-0.1,0.0);
+    // Create the segmentation object for the planar model and set all the parameters
+    seg.setOptimizeCoefficients (true);
+    seg.setModelType (pcl::SACMODEL_NORMAL_PLANE);
+    seg.setNormalDistanceWeight (0);
+    seg.setMethodType (pcl::SAC_RANSAC);
+    //seg.setAxis(axis);
+    //seg.setEpsAngle(20.0f * (M_PI/180.0f));
+    //cout << "getAxis: " << seg.getAxis() << endl;
+    seg.setMaxIterations (10000);
+    seg.setDistanceThreshold (0.01);
+    seg.setInputCloud (cloud_b_filtered);
+    seg.setInputNormals (cloud_normals);
+    // Obtain the plane inliers and coefficients
+    seg.segment (*inliers_plane, *coefficients_plane);
+    std::cerr << "Plane coefficients: " << *coefficients_plane << std::endl;
 
-      // Add visualization data
-      //showCloudsLeft(source, target);
+    //std::cerr << "Plane coefficient a: " << coefficients_plane->values[0] << std::endl;
 
-      //PointCloud::Ptr temp (new PointCloud);
-      pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp (new pcl::PointCloud<pcl::PointXYZRGB>);
-      PCL_INFO ("Aligning..."); //%s (%d) with %s (%d).\n", source.f_name.c_str (), source->points.size (), target.f_name.c_str (), target->points.size ());
-      pairAlign (source, target, temp, pairTransform, true);
-      
-      //transform current pair into the global transform
-      pcl::transformPointCloud (*temp, *result, GlobalTransform);
+    // Extract the planar inliers from the input cloud
+    extract.setInputCloud (cloud_b_filtered);
+    extract.setIndices (inliers_plane);
+    extract.setNegative (false);
 
-      //update the global transform
-      GlobalTransform = GlobalTransform * pairTransform;
+    // Write the planar inliers to disk
+    pcl::PointCloud<PointT>::Ptr cloud_plane (new pcl::PointCloud<PointT> ());
+    extract.filter (*cloud_plane);
+    std::cerr << "PointCloud representing the planar component: " << cloud_plane->points.size () << " data points." << std::endl;
+    writer.write ("ground_plane.ply", *cloud_plane, false);
 
-      cloud_vec.push_back(result);
+
+    //-----------------------------------------Rotate Point Cloud Based on Ground Plane------------------------------------------
+    Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+
+    // Define a translation on the x axis.
+    float theta=atan(-(coefficients_plane->values[1])/(coefficients_plane->values[0]));
+    cout << "THETA: " << theta << endl;
+    // The same rotation matrix as before; theta radians arround Z axis
+    transform.rotate (Eigen::AngleAxisf (theta, Eigen::Vector3f::UnitZ()));
+
+    // Print the transformation
+    printf ("\nMethod #2: using an Affine3f\n");
+    std::cout << transform.matrix() << std::endl;
+
+    //pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
+    pcl::transformPointCloud(*cloud_plane, *cloud_plane, transform);
+    writer.write ("ground_plane_tform.ply", *cloud_plane, false);
+
+
+    //----------------------------------Find the ground plane again and translate in X-----------------------------------
+    //-------------------------------------------------(BIG HACK!!)------------------------------------------------------
+    /*
+    ne.setSearchMethod (tree);
+    ne.setInputCloud (cloud_plane);
+    ne.setKSearch (50);
+    ne.compute (*cloud_normals);
+
+    seg.setDistanceThreshold (0.01);
+    seg.setInputCloud (cloud_plane);
+    seg.setInputNormals (cloud_normals);
+    // Obtain the plane inliers and coefficients
+    seg.segment (*inliers_plane, *coefficients_plane);
+    std::cerr << "Plane coefficients: " << *coefficients_plane << std::endl;
+
+    Eigen::Affine3f transform_2 = Eigen::Affine3f::Identity();
+    transform_2.translation() << coefficients_plane->values[3], 0, 0;
+    pcl::transformPointCloud(*cloud_b, *cloud_b, transform_2);
+
+    pcl::transformPointCloud(*cloud_b, *cloud_b, transform);
+    */
+    float sum = 0;
+    for (size_t i = 0; i < cloud_plane->size (); ++i) {
+
+      //cout << cloud_plane->points[inliers_plane->indices[i]].x << endl;
+      sum = sum + cloud_plane->points[i].x;
     }
 
-    copyPointCloud(*cloud_filtered, *cloud_filtered_old); 
+    
 
-    if (w==0)
-      t_total = Mat::zeros(3, 1, CV_64FC1);
-    else
-      t_total = other;
-      other = t_total+t_matrix;
-    cout << "other: " << other << endl;
+    float mean_sum = sum/cloud_plane->size ();
 
-    ptCloud->clear();
+    //cout << "Sum: " << sum << endl;
+
+    cout << "Mean_sum: " << mean_sum << endl;
+
+    std::cerr << "Plane coefficients: " << *coefficients_plane << std::endl;
+
+    Eigen::Affine3f transform_2 = Eigen::Affine3f::Identity();
+    //transform_2.translation() << coefficients_plane->values[3], 0, 0;
+    transform_2.translation() << -mean_sum, 0, 0;
+    pcl::transformPointCloud(*cloud_b, *cloud_b, transform_2);
+
+    pcl::transformPointCloud(*cloud_b, *cloud_b, transform);
+
+    stringstream ss2;
+    ss2 << "stitched_clouds3_complete/plants_tform_" << offset << ".ply";
+
+    writer.write (ss2.str(), *cloud_b, false);
+
+
+    //Convert XYZRGB data to XYZ
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz (new pcl::PointCloud<pcl::PointXYZ>);
+    copyPointCloud(*cloud_b, *cloud_xyz);
+
+    
+    boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+    viewer->setBackgroundColor (1, 1, 1); //.5, .5, 1
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud_b);
+    viewer->addPointCloud<pcl::PointXYZRGB> (cloud_b, rgb, "sample cloud");
+    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "sample cloud");
+
+    while (!viewer->wasStopped ())
+    {
+      viewer->spinOnce (100);
+      boost::this_thread::sleep (boost::posix_time::microseconds (100000));
+    }
+  
+
+    cloud_vec.clear();
+    cloud_b->clear();
+
+    double feat_time = (clock() - start) / (double) CLOCKS_PER_SEC;
+    cout<<"TIME, TOTAL: "<< feat_time << endl;
+
   }
 
 
-  //cout << "Cloud_vec size: " << cloud_vec.size() << endl;
 
-  pcl::PLYWriter writer;
-
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_a_filtered (new pcl::PointCloud<pcl::PointXYZRGB>);  
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_b (new pcl::PointCloud<pcl::PointXYZRGB>);
-
-  for (int i = 0; i < cloud_vec.size(); i++)
-  {
-    std::stringstream ss;
-    ss << "wtf_" << i << ".ply";
-    writer.write<pcl::PointXYZRGB> (ss.str (), *cloud_vec[i], false);
-    pcl::VoxelGrid<pcl::PointXYZRGB> sor;
-    sor.setInputCloud (cloud_vec[i]);
-    sor.setLeafSize (0.01f, 0.01f, 0.01f);
-    sor.filter (*cloud_a_filtered);
-
-    std::cerr << "PointCloud after filtering: " << cloud_a_filtered->width * cloud_a_filtered->height 
-     << " data points (" << pcl::getFieldsList (*cloud_a_filtered) << ")." << endl;
-
-    *cloud_b+=*cloud_a_filtered;
-    cloud_a_filtered ->clear();
-  }  
-
-  std::cerr << *cloud_b << std::endl;
-
-  writer.write<pcl::PointXYZRGB> ("Concatenate_BIG2.ply", *cloud_b, false); 
-
-
-
-
-
-
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_b_filtered (new pcl::PointCloud<pcl::PointXYZRGB>);
-
-  //-------------------------Create a conditional removal filter to remove green pixels------------------------
-  int rMax = 80; //kept low to keep out orange from traffic cone
-  int rMin = 50; //numbers lower than 50 will yield green leaves
-  int gMax = 255;
-  int gMin = 0;
-  int bMax = 28; //this blue is actually the critical value
-  int bMin = 0;
-  pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr color_cond (new pcl::ConditionAnd<pcl::PointXYZRGB> ());
-  color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("r", pcl::ComparisonOps::LT, rMax)));
-  color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("r", pcl::ComparisonOps::GT, rMin)));
-  color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("g", pcl::ComparisonOps::LT, gMax)));
-  color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("g", pcl::ComparisonOps::GT, gMin)));
-  color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("b", pcl::ComparisonOps::LT, bMax)));
-  color_cond->addComparison (pcl::PackedRGBComparison<pcl::PointXYZRGB>::Ptr (new pcl::PackedRGBComparison<pcl::PointXYZRGB> ("b", pcl::ComparisonOps::GT, bMin)));
-
-  // build the filter
-  pcl::ConditionalRemoval<pcl::PointXYZRGB> condrem (color_cond);
-  condrem.setInputCloud (cloud_b);
-  condrem.setKeepOrganized(true);
-
-  // apply filter
-  condrem.filter (*cloud_b_filtered);
-
-  std::vector<int> indices;
-  pcl::removeNaNFromPointCloud(*cloud_b_filtered,*cloud_b_filtered, indices);
-
-  //std::cerr << "Cloud after filtering: " << std::endl;
-  //std::cerr << *cloud_a_filtered << std::endl;
-
-  //writer.write<pcl::PointXYZRGB> ("filtered_brown.ply", *cloud_b_filtered, false);
-
- //-----------------------------------------Initialize for RANSAC------------------------------------------
-  pcl::NormalEstimation<PointT, pcl::Normal> ne;
-  pcl::SACSegmentationFromNormals<PointT, pcl::Normal> seg; 
-  pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT> ());
-  pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
-  pcl::ModelCoefficients::Ptr coefficients_plane (new pcl::ModelCoefficients), coefficients_cylinder (new pcl::ModelCoefficients);
-  pcl::PointIndices::Ptr inliers_plane (new pcl::PointIndices), inliers_cylinder (new pcl::PointIndices);
-  pcl::ExtractIndices<PointT> extract;
-
-
-  //-----------------------------------------Perform RANSAC on Ground Plane------------------------------------------
-  // Estimate point normals
-  ne.setSearchMethod (tree);
-  ne.setInputCloud (cloud_b_filtered);
-  ne.setKSearch (50);
-  ne.compute (*cloud_normals);
-
-  // Create the segmentation object for the planar model and set all the parameters
-  seg.setOptimizeCoefficients (true);
-  seg.setModelType (pcl::SACMODEL_NORMAL_PLANE);
-  seg.setNormalDistanceWeight (0);
-  seg.setMethodType (pcl::SAC_RANSAC);
-  seg.setMaxIterations (1000);
-  seg.setDistanceThreshold (0.05);
-  seg.setInputCloud (cloud_b_filtered);
-  seg.setInputNormals (cloud_normals);
-  // Obtain the plane inliers and coefficients
-  seg.segment (*inliers_plane, *coefficients_plane);
-  std::cerr << "Plane coefficients: " << *coefficients_plane << std::endl;
-
-  std::cerr << "Plane coefficient a: " << coefficients_plane->values[0] << std::endl;
-
-  // Extract the planar inliers from the input cloud
-  extract.setInputCloud (cloud_b_filtered);
-  extract.setIndices (inliers_plane);
-  extract.setNegative (false);
-
-  // Write the planar inliers to disk
-  pcl::PointCloud<PointT>::Ptr cloud_plane (new pcl::PointCloud<PointT> ());
-  extract.filter (*cloud_plane);
-  std::cerr << "PointCloud representing the planar component: " << cloud_plane->points.size () << " data points." << std::endl;
-  writer.write ("ground_plane.ply", *cloud_plane, false);
-
-
-  //-----------------------------------------Rotate Point Cloud Based on Ground Plane------------------------------------------
-  Eigen::Affine3f transform = Eigen::Affine3f::Identity();
-
-  // Define a translation on the x axis.
-  float theta=atan(-(coefficients_plane->values[1])/(coefficients_plane->values[0]));
-  // The same rotation matrix as before; theta radians arround Z axis
-  transform.rotate (Eigen::AngleAxisf (theta, Eigen::Vector3f::UnitZ()));
-
-  // Print the transformation
-  printf ("\nMethod #2: using an Affine3f\n");
-  std::cout << transform.matrix() << std::endl;
-
-  //pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
-  pcl::transformPointCloud(*cloud_plane, *cloud_plane, transform);
-  writer.write ("ground_plane_tform.ply", *cloud_plane, false);
-
-
-  //----------------------------------Find the ground plane again and translate in X-----------------------------------
-  //-------------------------------------------------(BIG HACK!!)------------------------------------------------------
-  ne.setSearchMethod (tree);
-  ne.setInputCloud (cloud_plane);
-  ne.setKSearch (50);
-  ne.compute (*cloud_normals);
-
-  seg.setDistanceThreshold (0.05);
-  seg.setInputCloud (cloud_plane);
-  seg.setInputNormals (cloud_normals);
-  // Obtain the plane inliers and coefficients
-  seg.segment (*inliers_plane, *coefficients_plane);
-  std::cerr << "Plane coefficients: " << *coefficients_plane << std::endl;
-
-  Eigen::Affine3f transform_2 = Eigen::Affine3f::Identity();
-  transform_2.translation() << coefficients_plane->values[3], 0, 0;
-  pcl::transformPointCloud(*cloud_b, *cloud_b, transform_2);
-
-  pcl::transformPointCloud(*cloud_b, *cloud_b, transform);
-  writer.write ("plants_tform.ply", *cloud_b, false);
-
-
-  //Convert XYZRGB data to XYZ
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz (new pcl::PointCloud<pcl::PointXYZ>);
-  copyPointCloud(*cloud_b, *cloud_xyz);
-
-
-
-
+  /*
 
   // THIS IS WHERE GROW_UP STARTS
   //----------------------------------------Take Normals of tformed plants---------------------------------
@@ -1346,6 +1477,7 @@ int main (int argc, char** argv)
     viewer->spinOnce (100);
     boost::this_thread::sleep (boost::posix_time::microseconds (100000));
   }
+  */
 
   return 0;
 }
